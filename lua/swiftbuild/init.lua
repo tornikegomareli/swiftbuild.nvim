@@ -15,9 +15,10 @@ swift.create_output_buffer = function()
 	-- Set buffer in the window
 	vim.api.nvim_win_set_buf(win, buf)
 
-	-- Set window options
-	vim.wo[win].number = false
-	vim.wo[win].relativenumber = false
+	-- Set window options directly on the window
+	local win_id = vim.api.nvim_get_current_win()
+	vim.api.nvim_win_set_option(win_id, "number", false)
+	vim.api.nvim_win_set_option(win_id, "relativenumber", false)
 
 	return buf, win
 end
