@@ -1,32 +1,69 @@
 local swift = {}
 
--- Create a dedicated output buffer
+-- Store buffer reference
+swift.output_buf = nil
+swift.output_win = nil
+
+-- Create or reuse output buffer
 swift.create_output_buffer = function()
-	-- Create a new buffer
+	-- If buffer exists but window was closed, create new window
+	if swift.output_buf and vim.api.nvim_buf_is_valid(swift.output_buf) then
+		-- Clear existing buffer content
+		vim.api.nvim_buf_set_lines(swift.output_buf, 0, -1, false, {})
+
+		-- Create new window
+		vim.cmd("vsplit")
+		local win = vim.api.nvim_get_current_win()
+		vim.api.nvim_win_set_buf(win, swift.output_buf)
+
+		-- Set window options
+		vim.api.nvim_win_set_option(win, "number", false)
+		vim.api.nvim_win_set_option(win, "relativenumber", false)
+
+		swift.output_win = win
+		return swift.output_buf, win
+	end
+
+	-- Create new buffer
 	local buf = vim.api.nvim_create_buf(false, true)
+	vim.api.nvim_buf_set_name(buf, "Swift-Output-" .. os.time())
 
-	-- Set buffer name
-	vim.api.nvim_buf_set_name(buf, "Swift Output")
-
-	-- Create a new window split
+	-- Create new window split
 	vim.cmd("vsplit")
 	local win = vim.api.nvim_get_current_win()
 
 	-- Set buffer in the window
 	vim.api.nvim_win_set_buf(win, buf)
 
-	-- Set window options directly on the window
-	local win_id = vim.api.nvim_get_current_win()
-	vim.api.nvim_win_set_option(win_id, "number", false)
-	vim.api.nvim_win_set_option(win_id, "relativenumber", false)
+	-- Set window options
+	vim.api.nvim_win_set_option(win, "number", false)
+	vim.api.nvim_win_set_option(win, "relativenumber", false)
+
+	-- Set buffer options
+	vim.api.nvim_buf_set_option(buf, "buftype", "nofile")
+	vim.api.nvim_buf_set_option(buf, "swapfile", false)
+	vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe") -- Buffer will be wiped when hidden
+
+	-- Store references
+	swift.output_buf = buf
+	swift.output_win = win
+
+	-- Setup buffer local keymaps
+	vim.api.nvim_buf_set_keymap(buf, "n", "q", ":q<CR>", { noremap = true, silent = true })
 
 	return buf, win
 end
 
 -- Append text to output buffer
 swift.append_to_output = function(buf, text)
-	local lines = vim.split(text, "\n")
-	vim.api.nvim_buf_set_lines(buf, -1, -1, false, lines)
+	if buf and vim.api.nvim_buf_is_valid(buf) then
+		local lines = vim.split(text, "\n")
+		vim.api.nvim_buf_set_lines(buf, -1, -1, false, lines)
+		-- Auto-scroll to bottom
+		if swift.output_win and vim.api.nvim_win_is_valid(swift.output_win) then
+			vim.api.nvim_win_set_cursor(swift.output_win, { vim.api.nvim_buf_line_count(buf), 0 })
+		end
+	end
 end
 
 -- Function to get project root directory
