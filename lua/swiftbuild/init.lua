@@ -1,5 +1,33 @@
 local swift = {}
 
+-- Create a dedicated output buffer
+swift.create_output_buffer = function()
+	-- Create a new buffer
+	local buf = vim.api.nvim_create_buf(false, true)
+
+	-- Set buffer name
+	vim.api.nvim_buf_set_name(buf, "Swift Output")
+
+	-- Create a new window split
+	vim.cmd("vsplit")
+	local win = vim.api.nvim_get_current_win()
+
+	-- Set buffer in the window
+	vim.api.nvim_win_set_buf(win, buf)
+
+	-- Set window options
+	vim.wo[win].number = false
+	vim.wo[win].relativenumber = false
+
+	return buf, win
+end
+
+-- Append text to output buffer
+swift.append_to_output = function(buf, text)
+	local lines = vim.split(text, "\n")
+	vim.api.nvim_buf_set_lines(buf, -1, -1, false, lines)
+end
+
 -- Function to get project root directory
 swift.get_root = function()
 	local current_file = vim.fn.expand("%:p")
@@ -16,22 +44,41 @@ swift.execute_command = function(cmd)
 	local root = swift.get_root()
 	vim.cmd("cd " .. root)
 
-	-- Create a new terminal buffer
-	vim.cmd("vsplit | terminal")
+	-- Create output buffer and window
+	local buf, win = swift.create_output_buffer()
 
-	-- Get the terminal buffer
-	local buf = vim.api.nvim_get_current_buf()
+	-- Add header to output
+	swift.append_to_output(buf, "Executing: " .. cmd)
+	swift.append_to_output(buf, string.rep("-", 40))
 
-	-- Send the command to terminal
-	vim.api.nvim_chan_send(vim.b.terminal_job_id, cmd .. "\n")
-
-	-- Add autocommand to close terminal on success
-	vim.api.nvim_create_autocmd("TermClose", {
-		buffer = buf,
-		callback = function()
-			vim.cmd("bdelete!")
+	-- Create job
+	local job_id = vim.fn.jobstart(cmd, {
+		stdout_buffered = true,
+		stderr_buffered = true,
+		on_stdout = function(_, data)
+			if data then
+				vim.schedule(function()
+					swift.append_to_output(buf, table.concat(data, "\n"))
+				end)
+			end
 		end,
-		once = true,
+		on_stderr = function(_, data)
+			if data then
+				vim.schedule(function()
+					swift.append_to_output(buf, table.concat(data, "\n"))
+				end)
+			end
+		end,
+		on_exit = function(_, exit_code)
+			vim.schedule(function()
+				swift.append_to_output(buf, string.rep("-", 40))
+				if exit_code == 0 then
+					swift.append_to_output(buf, "Command completed successfully")
+				else
+					swift.append_to_output(buf, "Command failed with exit code: " .. exit_code)
+				end
+			end)
+		end,
 	})
 end
 
