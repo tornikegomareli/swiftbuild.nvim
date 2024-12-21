@@ -19,6 +19,11 @@ swift.execute_command = function(cmd)
 	-- Create a new terminal buffer
 	vim.cmd("vsplit | terminal")
 
+	-- Instead of using TermOpen autocmd, set window options directly
+	local win = vim.api.nvim_get_current_win()
+	vim.wo[win].number = false
+	vim.wo[win].relativenumber = false
+
 	local buf = vim.api.nvim_get_current_buf()
 
 	-- Send the command to terminal
