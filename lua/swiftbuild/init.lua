@@ -6,8 +6,13 @@ swift.output_win = nil
 
 -- Create or reuse output buffer
 swift.create_output_buffer = function()
-	-- If buffer exists but window was closed, create new window
-	if swift.output_buf and vim.api.nvim_buf_is_valid(swift.output_buf) then
+	-- If an existing buffer exists but is hidden/invalid, remove our reference to it
+	if swift.output_buf and not vim.api.nvim_buf_is_valid(swift.output_buf) then
+		swift.output_buf = nil
+	end
+
+	-- If buffer exists and is valid, reuse it
+	if swift.output_buf then
 		-- Clear existing buffer content
 		vim.api.nvim_buf_set_lines(swift.output_buf, 0, -1, false, {})
 
@@ -24,9 +29,12 @@ swift.create_output_buffer = function()
 		return swift.output_buf, win
 	end
 
-	-- Create new buffer
+	-- Create new buffer with unique name
+	local buf_name = "Swift-Output-" .. os.time() .. "-" .. math.random(1000, 9999)
 	local buf = vim.api.nvim_create_buf(false, true)
-	vim.api.nvim_buf_set_name(buf, "Swift-Output-" .. os.time())
+
+	-- Try to set buffer name with error handling
+	pcall(vim.api.nvim_buf_set_name, buf, buf_name)
 
 	-- Create new window split
 	vim.cmd("vsplit")
@@ -43,6 +51,7 @@ swift.create_output_buffer = function()
 	vim.api.nvim_buf_set_option(buf, "buftype", "nofile")
 	vim.api.nvim_buf_set_option(buf, "swapfile", false)
 	vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe") -- Buffer will be wiped when hidden
+	vim.api.nvim_buf_set_option(buf, "modifiable", true)
 
 	-- Store references
 	swift.output_buf = buf
@@ -51,9 +60,18 @@ swift.create_output_buffer = function()
 	-- Setup buffer local keymaps
 	vim.api.nvim_buf_set_keymap(buf, "n", "q", ":q<CR>", { noremap = true, silent = true })
 
+	-- Add autocmd to clear our reference when buffer is wiped
+	vim.api.nvim_create_autocmd("BufWipeout", {
+		buffer = buf,
+		callback = function()
+			swift.output_buf = nil
+			swift.output_win = nil
+		end,
+		once = true,
+	})
+
 	return buf, win
 end
-
 -- Append text to output buffer
 swift.append_to_output = function(buf, text)
 	if buf and vim.api.nvim_buf_is_valid(buf) then
