@@ -13,7 +13,7 @@ Simple Neovim plugin for Swift build commands.
 Using lazy.nvim:
 ```lua
 {
-  "yourusername/swift.nvim",
+  "tornikegomareli/swift.nvim",
   config = function()
     require("swift").setup()
   end
